@@ -1,0 +1,6 @@
+fastapi
+scikit-learn
+pandas
+uvicorn
+black
+pytest
