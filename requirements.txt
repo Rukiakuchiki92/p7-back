@@ -1,6 +1,30 @@
-fastapi
-scikit-learn
+# tools 
+jupyter
+notebook
+
+# data 
 pandas
+
+# viz 
+seaborn
+plotly
+matplotlib
+
+# ml 
+scikit-learn
+imbalanced-learn
+shap
+lime
+
+# api 
+fastapi
 uvicorn
+httpx
+
+# qa
 black
+black[jupyter]
+flake8
+isort 
 pytest
+
