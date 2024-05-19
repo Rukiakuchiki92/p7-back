@@ -31,6 +31,8 @@ def lecture_x_test_original_clean():
 
 shap_dict = load("shap_dict.joblib")
 
+feat_imp = load("feat_importances.joblib")
+
 #################################################
 # Lecture du modèle de prédiction et des scores #
 #################################################
@@ -91,24 +93,25 @@ def get_client_info(client_id: int):
 
 
 
+
 @app.get('/Shap/{client_id}')
 def client_shap_df(client_id: int):
-
     all_client_ids = lecture_x_test_original_clean()['ID_CLIENT'].tolist()
 
     if client_id not in all_client_ids:
         return {"error": "Client's ID not found"}
 
-    client_data = lecture_x_test_original_clean()[lecture_x_test_original_clean()['ID_CLIENT'] == client_id]
-    
-    if client_data.empty:
-        return {"error": "Client data not available"}
-    
-    client_data = client_data[client_data['ID_CLIENT'] == client_id].index[0]  # Select the first row
+    client_data_index = lecture_x_test_original_clean()[lecture_x_test_original_clean()['ID_CLIENT'] == client_id].index[0]
 
-    shap_values = shap_dict[client_data]
+    shap_values = shap_dict[client_data_index]
 
-    # Convert SHAP values to a JSON-compatible format
     shap_json = {"shap_values": shap_values}
 
     return shap_json
+
+
+@app.get('/feature_importances/')
+def get_feature_importances():
+    feat_imp_df = pd.DataFrame(feat_imp, columns=['feature', 'importance'])
+    feat_imp_json = feat_imp_df.to_dict(orient='records')
+    return feat_imp_json
