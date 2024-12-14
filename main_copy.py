@@ -29,9 +29,13 @@ def lecture_x_test_original_clean():
 
 
 
-shap_dict = load("shap_dict.joblib")
+shap_dict = load("test_shap.joblib")
 
-feat_imp = load("feat_importances.joblib")
+featuretmp = load('feat_importances.joblib')
+explainertmp = load('explainer.joblib')
+shap_valuestmp = load('shap_values.joblib')
+clienttmp = load('client.joblib')
+grid1 = load('model_lg.joblib')
 
 #################################################
 # Lecture du modèle de prédiction et des scores #
@@ -93,9 +97,47 @@ def get_client_info(client_id: int):
 
 
 
-
 @app.get('/Shap/{client_id}')
 def client_shap_df(client_id: int):
+    # Vérifier si l'ID client existe dans le dataframe
+    if client_id not in clienttmp.index:
+        return {"error": "Client ID not found"}
+
+    # Extraire les données du client
+    client_data = clienttmp.iloc[[client_id]]
+    
+    # Faire des prédictions pour ce client
+    y_pred_proba_list = grid1.predict_proba(client_data)
+    y_pred_rf_proba = grid1.predict_proba(client_data)
+
+    # Afficher les informations sur le client
+    model_pred = round(y_pred_proba_list[0][0], 4)
+    client_number = client_data.iloc[0, 0]  # Supposons que la première colonne contient l'ID
+    risques = f"Il y a {y_pred_rf_proba[0][1]:.1%} de risques que le client ait des difficultés de paiement"
+
+    # Préparer les valeurs SHAP
+    client_number_cleaned = int(client_number) if isinstance(client_number, (np.integer, np.int64)) else client_number
+    client_shap_values = shap_valuestmp[client_id].values  # Correction de l'indexation
+
+    # Si les valeurs SHAP sont complexes, les convertir en liste ou dict
+    if isinstance(client_shap_values, np.ndarray):
+        client_shap_values = client_shap_values.tolist()  # Convertir en liste
+    elif isinstance(client_shap_values, shap.Explanation):
+        client_shap_values = client_shap_values.data  # Extraire les données pertinentes
+
+    # Préparer le dictionnaire des informations du client
+    client_info = {
+        "client_id": client_number_cleaned,
+        "model_prediction": model_pred,
+        "risques": risques,
+        "shap_client": client_shap_values,
+    }
+
+    return client_info
+
+
+@app.get('/recup_index/{client_id}')
+def get_index(client_id: int):
     all_client_ids = lecture_x_test_original_clean()['ID_CLIENT'].tolist()
 
     if client_id not in all_client_ids:
@@ -103,15 +145,8 @@ def client_shap_df(client_id: int):
 
     client_data_index = lecture_x_test_original_clean()[lecture_x_test_original_clean()['ID_CLIENT'] == client_id].index[0]
 
-    shap_values = shap_dict[client_data_index]
-
-    shap_json = {"shap_values": shap_values}
-
-    return shap_json
+    return client_data_index
 
 
-@app.get('/feature_importances/')
-def get_feature_importances():
-    feat_imp_df = pd.DataFrame(feat_imp, columns=['feature', 'importance'])
-    feat_imp_json = feat_imp_df.to_dict(orient='records')
-    return feat_imp_json
+
+
