@@ -124,13 +124,13 @@ def client_shap_df(client_id: int):
         client_shap_values = client_shap_values.tolist()  # Convertir en liste
     elif isinstance(client_shap_values, shap.Explanation):
         client_shap_values = client_shap_values.data  # Extraire les données pertinentes
-
     # Préparer le dictionnaire des informations du client
     client_info = {
         "client_id": client_number_cleaned,
         "model_prediction": model_pred,
         "risques": risques,
         "shap_client": client_shap_values,
+        "featuresimp": shap_valuestmp.feature_names
     }
 
     return client_info
