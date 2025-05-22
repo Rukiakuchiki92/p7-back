@@ -18,6 +18,46 @@ feature_names = load("feature_names.joblib")
 # Colonnes d'entrée : toutes sauf ID_CLIENT et CIBLE (si présente)
 input_cols = [c for c in X_test.columns if c not in ['ID_CLIENT', 'CIBLE']]
 
+def check_client_exists(client_id, X_test):
+    if client_id not in X_test["ID_CLIENT"].values:
+        raise HTTPException(status_code=404, detail="Client non trouvé")
+
+def get_client_features(client_id, X_test, input_cols):
+    client_df = X_test[X_test["ID_CLIENT"] == client_id]
+    X_input = client_df[input_cols]
+    return client_df, X_input
+
+def get_model_prediction(X_input, model):
+    prob = model.predict_proba(X_input)[0, 1]
+    return prob
+
+def get_decision_and_commentary(prob, best_thresh):
+    approved = prob < best_thresh
+    decision = "CRÉDIT ACCORDÉ 🥳" if approved else "CRÉDIT REFUSÉ 🚫"
+    commentary = (
+        "Client solvable 💰 Profil validé" if approved else
+        "Client non solvable 💸 Attention au risque"
+    )
+    return approved, decision, commentary
+
+def get_warnings(client_df):
+    warnings = []
+    age = float(client_df["AGE"].iloc[0])
+    revenu = float(client_df["REVENU_TOTAL"].iloc[0])
+    enfants = int(client_df["NBR_ENFANTS"].iloc[0])
+    anciennete = float(client_df['ANNEES_EMPLOI'].iloc[0])
+    emploi = client_df["EMPLOI_TYPE"].iloc[0]
+    if emploi in ("Retraité", "Pensioner") and age > 63:
+        warnings.append("🕰️ Retraité senior : vérifier fin droit pension & assurances")
+    if enfants >= 3:
+        warnings.append("👨‍👩‍👧‍👦 Charge familiale élevée : adapter montant crédit")
+    if revenu < 30000:
+        warnings.append("💸 Revenu faible : exiger caution ou co-emprunteur")
+    if anciennete < 2:
+        warnings.append("📈 Ancienneté pro faible : proposer durée plus courte")
+    return warnings
+
+
 @app.get("/clients")
 def get_all_clients():
     return {"clients": X_test["ID_CLIENT"].tolist()}
@@ -30,31 +70,11 @@ def get_data():
 @app.get("/predict/{client_id}")
 def predict_client(client_id: int):
     try:
-        if client_id not in X_test["ID_CLIENT"].values:
-            raise HTTPException(status_code=404, detail="Client non trouvé")
-        client_df = X_test[X_test["ID_CLIENT"] == client_id]
-        X_input = client_df[input_cols]
-        prob = model.predict_proba(X_input)[0, 1]
-        approved = prob < best_thresh
-        decision = "CRÉDIT ACCORDÉ 🥳" if approved else "CRÉDIT REFUSÉ 🚫"
-        commentary = (
-            "Client solvable 💰 Profil validé" if approved else
-            "Client non solvable 💸 Attention au risque"
-        )
-        warnings = []
-        age = float(client_df["AGE"].iloc[0])
-        revenu = float(client_df["REVENU_TOTAL"].iloc[0])
-        enfants = int(client_df["NBR_ENFANTS"].iloc[0])
-        anciennete = float(client_df['ANNEES_EMPLOI'].iloc[0])
-        emploi = client_df["EMPLOI_TYPE"].iloc[0]
-        if emploi in ("Retraité", "Pensioner") and age > 63:
-            warnings.append("🕰️ Retraité senior : vérifier fin droit pension & assurances")
-        if enfants >= 3:
-            warnings.append("👨‍👩‍👧‍👦 Charge familiale élevée : adapter montant crédit")
-        if revenu < 30000:
-            warnings.append("💸 Revenu faible : exiger caution ou co-emprunteur")
-        if anciennete < 2:
-            warnings.append("📈 Ancienneté pro faible : proposer durée plus courte")
+        check_client_exists(client_id, X_test)
+        client_df, X_input = get_client_features(client_id, X_test, input_cols)
+        prob = get_model_prediction(X_input, model)
+        approved, decision, commentary = get_decision_and_commentary(prob, best_thresh)
+        warnings = get_warnings(client_df)
         return {
             "id_client": client_id,
             "probabilité_défaut": round(prob * 100, 1),
@@ -90,3 +110,6 @@ def get_top_reasons(client_id: int):
     idx = np.argsort(-np.abs(vals))[:3]
     reasons = [{"feature": feature_names[i], "impact": float(vals[i])} for i in idx]
     return {"client_id": client_id, "top_reasons": reasons}
+
+
+
